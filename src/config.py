@@ -4,6 +4,19 @@ from os.path import dirname
 
 database_name = os.path.join(dirname(__file__), "../database.ini")
 
+employer_id = [
+    "1942330",
+    "49357",
+    "3036416",
+    "78638",
+    "2748",
+    "2848663",
+    "2180",
+    "1942336",
+    "3529",
+    "816144",
+]
+
 
 def config(filename: str = database_name, section: str = "postgresql") -> dict:
     """

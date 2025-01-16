@@ -20,7 +20,13 @@ class DataBaseSQL(Base_SQL):
         self.params = params
         try:
             logger.info("Подключаемся к базе данных PostgreSQL для создания базы.")
-            self.conn = psycopg2.connect(dbname="postgres", **self.params)
+            self.conn = psycopg2.connect(
+                dbname="postgres",
+                user=self.params.get("user"),
+                password=self.params.get("password"),
+                host=self.params.get("host", "localhost"),  # Значение по умолчанию
+                port=self.params.get("port", 5432),  # Значение по умолчанию
+            )
             self.conn.autocommit = True
             logger.info(f"Подключение к базе данных {self.database_name} успешно установлено.")
         except psycopg2.Error as e:
@@ -52,31 +58,38 @@ class DataBaseSQL(Base_SQL):
         try:
             logger.info(f"Создаём таблицы в базе данных {self.database_name}.")
 
-            self.conn = psycopg2.connect(dbname=self.database_name, **self.params)  # Подключение к новой базе
+            self.conn = psycopg2.connect(
+                dbname=self.database_name,
+                user=self.params.get("user"),
+                password=self.params.get("password"),
+                host=self.params.get("host", "localhost"),  # Значение по умолчанию
+                port=self.params.get("port", 5432),  # Значение по умолчанию
+            )  # Подключение к новой базе
             self.conn.autocommit = True
 
             # Создаем таблицы
             with self.conn.cursor() as cur:
                 cur.execute(
                     """
-                    CREATE TABLE IF NOT EXISTS employees (
-                        emp_id SERIAL PRIMARY KEY,
-                        employer_id int,
+                    CREATE TABLE IF NOT EXISTS employer (
+                        id SERIAL PRIMARY KEY,
+                        employer_id int UNIQUE,
                         employer_name VARCHAR(100),
                         employer_url VARCHAR(100)
                     )
                 """
                 )
+
                 cur.execute(
                     """
                     CREATE TABLE IF NOT EXISTS vacancies (
                         vacancy_id SERIAL PRIMARY KEY,
-                        emp_id int,
                         vacancy_name VARCHAR(100),
                         vacancy_url VARCHAR(100),
                         city VARCHAR(50),
                         salary INT,
-                        FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
+                        employer_id INT,
+                        FOREIGN KEY (employer_id) REFERENCES employer(employer_id)
                     )
                 """
                 )
@@ -93,44 +106,60 @@ class DataBaseSQL(Base_SQL):
         try:
             logger.info(f"Начинаем вставку данных в базу данных {self.database_name}.")
 
-            self.conn = psycopg2.connect(dbname=self.database_name, **self.params)
+            self.conn = psycopg2.connect(
+                dbname=self.database_name,
+                user=self.params.get("user"),
+                password=self.params.get("password"),
+                host=self.params.get("host", "localhost"),  # Значение по умолчанию
+                port=self.params.get("port", 5432),  # Значение по умолчанию
+            )
             self.conn.autocommit = True
             with self.conn.cursor() as cur:
                 for vacancy in vacancies:
                     try:
-                        # Вставляем данные в таблицу employees
+                        employer = vacancy.get("employer")
+                        if employer:
+                            employer_id = employer.get("id")
+                            employer_name = employer.get("name")
+                            employer_url = employer.get("alternate_url")
+
+                            cur.execute(
+                                """
+                                INSERT INTO employer (employer_id, employer_name, employer_url)
+                                VALUES (%s, %s, %s)
+                                ON CONFLICT (employer_id) DO NOTHING
+                                RETURNING employer_id
+                                """,
+                                (employer_id, employer_name, employer_url),
+                            )
+
+                            result = cur.fetchone()
+                            if result:
+                                employer_id = result[0]
+                            else:
+                                logger.warning(f"Работодатель {employer_id} уже существует, пропускаем вставку.")
+                        else:
+                            logger.warning(f"Данные о работодателе отсутствуют для вакансии {vacancy.get('id')}")
+                            continue
+
+                        salary_from = vacancy.get("salary", {}).get("from")
+                        salary_to = vacancy.get("salary", {}).get("to")
+                        salary = salary_from if salary_from is not None else salary_to
+
+                        address = vacancy.get("address")
+                        city = address.get("city") if address else None
+
                         cur.execute(
                             """
-                            INSERT INTO employees (employer_id, employer_name, employer_url)
-                            VALUES (%s, %s, %s)
-                            RETURNING emp_id
-                        """,
-                            (
-                                vacancy.get("employer", {}).get("id"),
-                                vacancy.get("employer", {}).get("name"),
-                                vacancy.get("employer", {}).get("alternate_url"),
-                            ),
-                        )
-
-                        # Получаем ID работодателя
-                        employer_id = cur.fetchone()[0]
-
-                        # Вставляем данные в таблицу vacancies
-                        cur.execute(
-                            """
-                            INSERT INTO vacancies (emp_id, vacancy_name, vacancy_url, city, salary)
+                            INSERT INTO vacancies (vacancy_name, vacancy_url, city, salary, employer_id)
                             VALUES (%s, %s, %s, %s, %s)
-                        """,
+                            """,
                             (
-                                employer_id,
                                 vacancy.get("name"),
                                 vacancy.get("alternate_url"),
-                                vacancy.get("address", {}).get("city"),
-                                (
-                                    vacancy.get("salary", {}).get("from")
-                                    if vacancy.get("salary", {}).get("from") is not None
-                                    else vacancy.get("salary", {}).get("to")
-                                ),
+                                city,
+                                salary,
+                                employer_id,
                             ),
                         )
                         logger.info(f"Вакансия {vacancy.get('id')} успешно вставлена.")
@@ -147,6 +176,7 @@ class DataBaseSQL(Base_SQL):
                     except Exception as e:
                         logger.error(f"Неизвестная ошибка при обработке вакансии {vacancy.get('id')}: {e}")
                         continue
+
             logger.info("Все вакансии успешно вставлены.")
         except psycopg2.Error as e:
             logger.error(f"Ошибка при подключении к базе данных для вставки данных: {e}")

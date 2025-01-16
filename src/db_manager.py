@@ -38,7 +38,13 @@ class DBManager(DBBase):
                 raise ValueError(f"Отсутствует обязательный параметр: {param}")
 
         try:
-            conn = psycopg2.connect(dbname=self.database_name, **self.params)
+            conn = psycopg2.connect(
+                dbname=self.database_name,
+                user=self.params.get("user"),
+                password=self.params.get("password"),
+                host=self.params.get("host", "localhost"),  # Значение по умолчанию
+                port=self.params.get("port", 5432),  # Значение по умолчанию
+            )
             logger.info(f"Успешное подключение к базе данных: {self.database_name}")
             return conn
         except psycopg2.Error as e:
@@ -53,8 +59,8 @@ class DBManager(DBBase):
                     logger.info("Запуск запроса для получения количества вакансий по компаниям.")
                     cur.execute(
                         """
-                        SELECT employees.employer_name, COUNT(vacancy_id) FROM vacancies
-                        JOIN employees ON employees.emp_id = vacancies.emp_id
+                        SELECT employer.employer_name, COUNT(vacancy_id) FROM vacancies
+                        JOIN employer ON employer.employer_id = vacancies.employer_id
                         GROUP BY employer_name
                         """
                     )
@@ -73,9 +79,9 @@ class DBManager(DBBase):
                     logger.info("Запуск запроса для получения всех вакансий.")
                     cur.execute(
                         """
-                        SELECT employees.employer_name, vacancies.vacancy_name, vacancies.salary, vacancies.vacancy_url
+                        SELECT employer.employer_name, vacancies.vacancy_name, vacancies.salary, vacancies.vacancy_url
                         FROM vacancies
-                        JOIN employees ON employees.emp_id = vacancies.emp_id
+                        JOIN employer ON employer.employer_id = vacancies.employer_id
                         """
                     )
                     result = cur.fetchall()
@@ -130,10 +136,11 @@ class DBManager(DBBase):
                 with conn.cursor() as cur:
                     logger.info(f"Запуск запроса для получения вакансий с ключевым словом: {keyword}.")
                     cur.execute(
-                        f"""
-                        SELECT * FROM vacancies
-                        WHERE vacancy_name LIKE '%{keyword}%'
                         """
+                        SELECT * FROM vacancies
+                        WHERE vacancy_name LIKE %s
+                        """,
+                        (f"%{keyword}%",),  # Параметр передается как кортеж
                     )
                     result = cur.fetchall()
                     logger.info(f"Запрос для получения вакансий с ключевым словом '{keyword}' успешно выполнен.")

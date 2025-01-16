@@ -1,7 +1,11 @@
-import psycopg2
+import json
+import os
+
 import pytest
 
 from src.config import config
+from src.db_manager import DBManager
+from src.sql_database import DataBaseSQL
 
 
 @pytest.fixture
@@ -14,54 +18,25 @@ def vacancy():
     ]
 
 
-@pytest.fixture(scope="function")
-def db_connection_employees(postgresql):
-    conn = postgresql
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS employees (
-            emp_id SERIAL PRIMARY KEY,
-            employer_id int,
-            employer_name VARCHAR(100),
-            employer_url VARCHAR(100)
-        )
-    """
-    )
+@pytest.fixture
+def vacancies():
+    file_path = os.path.join(os.path.dirname(__file__), "../data/data.json")
+    with open(file_path) as f:
+        return json.load(f)
 
 
-    conn.commit()
-    yield conn
-    cur.execute("TRUNCATE TABLE employees RESTART IDENTITY;")
-    conn.commit()
-    cur.close()
-    conn.close()
+@pytest.fixture
+def db_instance(vacancies):
+    """Фикстура для создания экземпляра DataBaseSQL и вставки данных."""
+    params = config()
+    db = DataBaseSQL("test_sql_database", **params)
+    db.insert_data_to_db(vacancies)
+    return db, params
 
 
-@pytest.fixture(scope="function")
-def db_connection_vacancies(postgresql):
-    conn = postgresql
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vacancies (
-            vacancy_id SERIAL PRIMARY KEY,
-            emp_id int,
-            vacancy_name VARCHAR(100),
-            vacancy_url VARCHAR(100),
-            city VARCHAR(50),
-            salary INT,
-            FOREIGN KEY (emp_id) REFERENCES employees(emp_id)
-        )
-    """
-    )
-
-    conn.commit()
-    yield conn
-    cur.execute("DROP TABLE vacancies")
-    conn.commit()
-    cur.close()
-    conn.close()
-
+@pytest.fixture
+def dbm_instance(vacancies):
+    """Фикстура для создания экземпляра DataBaseSQL и вставки данных."""
+    params = config()
+    dbm = DBManager("test_sql_database", **params)
+    return dbm, params

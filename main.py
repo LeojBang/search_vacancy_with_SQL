@@ -4,7 +4,7 @@ from src.hh_api import HeadHunterAPI
 from src.sql_database import DataBaseSQL
 
 
-def main():
+def main() -> None:
     hh = HeadHunterAPI()
     params = config()
     database = DataBaseSQL(**params)
@@ -53,11 +53,11 @@ def main():
     high_salary_vacancies = count.get_vacancies_with_higher_salary()
     if high_salary_vacancies:
         for vacancy in high_salary_vacancies:
-            emp_id, vacancy_id, employer_name, vacancy_name, salary, vacancy_url = vacancy
-            print(f"Вакансия: {employer_name}")
-            print(f"Ссылка на вакансию: {vacancy_name}")
-            print(f"Город: {salary}")
-            print(f"Зарплата: {vacancy_url} руб.\n")
+            vacancy_id, vacancy_name, vacancy_url, city, salary, employer_id = vacancy
+            print(f"Вакансия: {vacancy_name}")
+            print(f"Ссылка на вакансию: {vacancy_url}")
+            print(f"Город: {city}")
+            print(f"Зарплата: {salary} руб.\n")
     else:
         print("Вакансии с зарплатой выше средней не найдены.")
 

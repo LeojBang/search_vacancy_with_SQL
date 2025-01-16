@@ -1,6 +1,7 @@
 import requests
 
 from src.base_api import BaseAPI
+from src.config import employer_id
 from src.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -28,18 +29,7 @@ class HeadHunterAPI(BaseAPI):
             "text": None,
             "page": 0,
             "per_page": 100,
-            "employer_id": [
-                "1942330",
-                "49357",
-                "3036416",
-                "78638",
-                "2748",
-                "2848663",
-                "2180",
-                "1942336",
-                "3529",
-                "816144",
-            ],
+            "employer_id": employer_id,
         }
         self.__vacancies: list = []
         self._load_vacancies()
